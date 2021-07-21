@@ -1,0 +1,611 @@
+---
+title: "Project 2"
+author: "Jennifer Zhang"
+date: "12/12/2019"
+output: pdf_document
+---
+
+```{r}
+
+# Clear all variables and prior sessions
+rm(list=ls(all=TRUE))
+
+# Load Libraries
+library(lattice)
+library(foreign)
+library(MASS)
+library(car)
+require(stats)
+require(stats4)
+library(KernSmooth)
+library(fastICA)
+library(cluster)
+library(leaps)
+library(mgcv)
+library(rpart)
+library(pan)
+library(mgcv)
+library(DAAG)
+library("TTR")
+library(tis)
+require("datasets")
+require(graphics)
+library("forecast")
+library(nlstools)
+library(fpp)
+library(strucchange)
+library(Quandl)
+library(zoo)
+library(PerformanceAnalytics)
+library(quantmod)
+#library(stockPortfolio)
+library(vars)
+library(lmtest)
+library(dlnm)
+library(hts)
+library(tseries)
+library(rugarch)
+library('KFAS')
+library('FKF')
+```
+
+1. Produce a time-series plot of your data including the respective ACF and PACF plots.
+```{r}
+
+f <- read.table("FEDFUNDS.csv", sep=",", header=TRUE)
+f_ts <- ts(f["FEDFUNDS"],start=2000,freq=12)
+
+u <- read.table("UNRATE.csv", sep=",", header=TRUE)
+u_ts <- ts(u["UNRATE"],start=2000,freq=12)
+
+t <- seq(2000, 2019.92,length=length(f_ts))
+
+plot(f_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(2000,2020), main="Effective Federal Funds Rate")
+nberShade()
+
+plot(u_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(2000,2020), main="Unemployment Rate")
+nberShade()
+
+tsdisplay(f_ts,ylab="Rate", xlab="Time", lwd=1, col='skyblue3',main="Effective Federal Funds Rate")
+
+tsdisplay(u_ts,ylab="Rate", xlab="Time", lwd=1, col='skyblue3',main="Unemployment Rate")
+```
+
+2. As a baseline model, fit an ARIMA model to each series and comment on the fit. For the next questions, you will instead use the model estimated in (3) for their respective answers.
+```{r}
+f_arima = auto.arima(f_ts)
+S(f_arima) # ARIMA(1,1,2)
+
+u_arima = auto.arima(u_ts)
+S(u_arima) #ARIMA(1,2,1)
+
+par(mfrow = c(2,1))
+
+plot(f_ts,main="Arima Fit for Effective Federal Funds Rate")
+lines(f_arima$fitted, col="red")
+
+plot(u_ts,main="Arima Fit for Unemployment Rate")
+lines(u_arima$fitted, col="red")
+
+# Residual vs Time Plots
+par(mfrow = c(2,1))
+
+plot(t, f_arima$res, pch=20, ylab="Residuals", xlab="Time", main="Arima Residuals for Effective Federal Funds Rate")
+abline(h=0, col="red", lwd=2)
+
+plot(t, u_arima$res, pch=20, ylab="Residuals", xlab="Time", main="Arima Residuals for Unemployment Rate")
+abline(h=0, col="red", lwd=2)
+```
+
+3. Fit a model that includes, trend, seasonality and cyclical components. Make sure to discuss your model in detail.
+```{r}
+# Effective Federal Funds Rate:
+
+# Model 1: Linear 
+f1=lm(f_ts~t)
+par(mfrow=c(2,1))
+plot(f_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 1: Linear")
+lines(t,f1$fit,col="red3",lwd=2)
+plot(t,f1$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 2: Quadratic 
+f2=lm(f_ts~t+I(t^2))
+par(mfrow=c(2,1))
+plot(f_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 2: Quadratic")
+lines(t,f2$fit,col="red3",lwd=2)
+plot(t,f2$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 3: Periodic 
+f3=lm(f_ts~t+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(f_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 3: Periodic")
+lines(t,f3$fit,col="red3",lwd=2)
+plot(t,f3$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 4: Quadratic-periodic
+f4=lm(f_ts~t+I(t^2)+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(f_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 4: Quadratic-Periodic")
+lines(t,f4$fit,col="red3",lwd=2)
+plot(t,f4$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 5: Log-Linear 
+lf_ts <- log(f_ts)
+f5=lm(lf_ts~t) 
+par(mfrow=c(2,1))
+plot(lf_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 5: Log-Linear")
+lines(t,f5$fit,col="red3",lwd=2)
+plot(t,f5$res, ylab="Residuals",type='l',xlab="Time")
+
+# Mode1 6: Log-quadratic 
+f6=lm(lf_ts~t+I(t^2))
+par(mfrow=c(2,1))
+plot(lf_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 6: Log-Quadratic")
+lines(t,f6$fit,col="red3",lwd=2)
+plot(t,f6$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 7: Log-periodic 
+f7=lm(lf_ts~t+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(lf_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 7: Log-Periodic")
+lines(t,f7$fit,col="red3",lwd=2)
+plot(t,f7$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 8: Log-quadratic-periodic
+f8=lm(lf_ts~t+I(t^2)+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(lf_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 8: Log-Quadratic-Periodic")
+lines(t,f8$fit,col="red3",lwd=2)
+plot(t,f8$res, ylab="Residuals",type='l',xlab="Time")
+
+AIC(f1,f2,f3,f4,f5,f6,f7,f8) # model 6, model 8, model 5
+
+BIC(f1,f2,f3,f4,f5,f6,f7,f8) # model 6, model 8, model 5
+
+tsdisplay(f6$res) #AR(2)
+
+# season
+ffit1 <- tslm(lf_ts ~ season+0) 
+tsdisplay(ffit1$res) # AR(2)
+
+# season, trend
+ffit2 <- tslm(lf_ts ~ t+I(t^2)+season+0) 
+tsdisplay(ffit2$res) # AR(2)
+
+# season, trend, cycle
+ffit3=Arima(lf_ts,order=c(2,0,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(2,0,0)))
+tsdisplay(ffit3$res)
+
+ffit4=Arima(lf_ts,order=c(1,1,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(2,0,1)))
+tsdisplay(ffit4$res)
+
+ffit5=Arima(lf_ts,order=c(1,1,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(2,0,0)))
+tsdisplay(ffit5$res)
+
+AIC(ffit3,ffit4,ffit5) # fit 5, fit 4, fit 3
+BIC(ffit3,ffit4,ffit5) # fit 5, fit 4, fit 3
+
+S(ffit5)
+```
+
+```{r}
+# Unemployment Trend:
+
+# Model 1: Linear 
+u1=lm(u_ts~t)
+par(mfrow=c(2,1))
+plot(u_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 1: Linear")
+lines(t,u1$fit,col="red3",lwd=2)
+plot(t,u1$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 2: Quadratic 
+u2=lm(u_ts~t+I(t^2))
+par(mfrow=c(2,1))
+plot(u_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 2: Quadratic")
+lines(t,u2$fit,col="red3",lwd=2)
+plot(t,u2$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 3: Periodic 
+u3=lm(u_ts~t+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(u_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 3: Periodic")
+lines(t,u3$fit,col="red3",lwd=2)
+plot(t,u3$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 4: Quadratic-periodic
+u4=lm(u_ts~t+I(t^2)+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(u_ts,ylab="Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 4: Quadratic-Periodic")
+lines(t,u4$fit,col="red3",lwd=2)
+plot(t,u4$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 5: Log-Linear 
+lu_ts <- log(u_ts)
+u5=lm(lu_ts~t) 
+par(mfrow=c(2,1))
+plot(lu_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 5: Log-Linear")
+lines(t,u5$fit,col="red3",lwd=2)
+plot(t,u5$res, ylab="Residuals",type='l',xlab="Time")
+
+# Mode1 6: Log-quadratic 
+u6=lm(lu_ts~t+I(t^2))
+par(mfrow=c(2,1))
+plot(lu_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 6: Log-Quadratic")
+lines(t,u6$fit,col="red3",lwd=2)
+plot(t,u6$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 7: Log-periodic 
+u7=lm(lu_ts~t+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(lu_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 7: Log-Periodic")
+lines(t,u7$fit,col="red3",lwd=2)
+plot(t,u7$res, ylab="Residuals",type='l',xlab="Time")
+
+# Model 8: Log-quadratic-periodic
+u8=lm(lu_ts~t+I(t^2)+I(sin(2*pi*t))+I(cos(2*pi*t)))
+par(mfrow=c(2,1))
+plot(lu_ts,ylab="Log Rate", xlab="Time", lwd=2, col='skyblue3', xlim=c(1999,2020), main="Model 8: Log-Quadratic-Periodic")
+lines(t,u8$fit,col="red3",lwd=2)
+plot(t,u8$res, ylab="Residuals",type='l',xlab="Time")
+
+AIC(u1,u2,u3,u4,u5,u6,u7,u8) # model 6, model 8, model 5
+
+BIC(u1,u2,u3,u4,u5,u6,u7,u8) # model 6, model 8, model 5
+
+tsdisplay(u6$res) #AR(1)
+
+# season
+ufit1 <- tslm(lu_ts ~ season+0) 
+tsdisplay(ufit1$res) # AR(1)
+
+# season, trend
+ufit2 <- tslm(lu_ts ~ t+I(t^2)+season+0) # AR(1)
+tsdisplay(ufit2$res)
+
+# season, trend, cycle
+ufit3=Arima(lu_ts,order=c(1,1,1),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,1)))
+tsdisplay(ufit3$res)
+
+ufit4=Arima(lu_ts,order=c(1,1,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,1)))
+tsdisplay(ufit4$res)
+
+ufit5=Arima(lu_ts,order=c(1,1,1),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,0)))
+tsdisplay(ufit5$res)
+
+AIC(ufit3,ufit4,ufit5) # fit 4, fit 3, fit 5
+BIC(ufit3,ufit4,ufit5) # fit 4, fit 3, fit 5
+
+S(ufit4)
+```
+
+4. Plot the respective residuals vs. fitted values and discuss your observations.
+```{r}
+# Effective Federal Funds Rate
+
+plot(t, ffit4$res, pch=20, ylab="Residuals", xlab="Time", main="Effective Federal Funds Rate")
+plot(t, ffit4$res, pch=20, ylab="Residuals", xlab="Time", main="Effective Federal Funds Rate",ylim=c(-1,1)) # zoom in
+abline(h=0, col="red", lwd=2)
+
+plot(t, ffit4$fit, pch=20, ylab="Fitted", xlab="Time", main="Effective Federal Funds Rate")
+
+plot(ffit4$fit, ffit4$res, pch=20, ylab="Fitted", xlab="Residuals", main="Effective Federal Funds Rate")
+
+# Unemployment Rate
+plot(t, ufit4$res, pch=20, ylab="Residuals", xlab="Time", main="Unemployment Rate")
+plot(t, ufit4$res, pch=20, ylab="Residuals", xlab="Time", main="Unemployment Rate",ylim=c(-1,1)) # zoom in
+abline(h=0, col="red", lwd=2)
+
+plot(t, ufit4$fit, pch=20, ylab="Fitted", xlab="Time", main="Unemployment Rate")
+
+plot(ufit4$fit, ufit4$res, pch=20, ylab="Fitted", xlab="Residuals", main="Unemployment Rate")
+```
+
+5. Plot the ACF and PACF of the respective residuals and interpret the plots.
+```{r}
+# Effective Federal Funds Rate
+quartz()
+tsdisplay(ffit5$res)
+
+# Unemployment Rate
+quartz()
+tsdisplay(ufit4$res)
+```
+
+6. Plot the respective CUSUM and interpret the plot.
+```{r}
+# Effective Federal Funds Rate
+quartz()
+plot(efp(ffit4$res~1, type = "Rec-CUSUM"))
+
+# Unemployment Rate
+quartz()
+plot(efp(ufit4$res~1, type = "Rec-CUSUM"))
+```
+
+7. Plot the respective Recursive Residuals and interpret the plot.
+```{r}
+#Effective Federal Funds Rate
+yf=recresid(ffit5$res~1)
+quartz()
+plot(yf, pch=16,ylab="Recursive Residuals", main="Effective Federal Funds Rate")
+
+# Unemployment Rate
+yu=recresid(ufit4$res~1)
+quartz()
+plot(yu, pch=16,ylab="Recursive Residuals", main="Unemployment Rate")
+```
+
+8. For your model, discuss the associated diagnostic statistics.
+```{r}
+# Effective Federal Funds Rate
+S(ffit5)
+
+# Unemployment Rate
+S(ufit4)
+```
+
+9. Use your model to forecast 12-steps ahead. Your forecast should include the respective error bands.
+```{r}
+# Effective Federal Funds Rate
+#ffit5=Arima(lf_ts,order=c(1,1,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,0)))
+ffit5=Arima(lf_ts,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+quartz()
+plot(forecast(ffit5,h=12,level=c(90,95)),shadecols="oldstyle")
+
+# Unemployment Rate
+#ufit4=Arima(lu_ts,order=c(1,2,1),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,1)))
+ufit4=Arima(lu_ts,order=c(1,2,1),include.drift=TRUE,seasonal=list(order=c(1,0,1)))
+quartz()
+plot(forecast(ufit4,h=12,level=c(90,95)),shadecols="oldstyle")
+```
+
+10. Fit an appropriate VAR model using your two variables. Make sure to show the relevant plots and discuss your results from the fit.
+```{r}
+tsdisplay(lf_ts,main="Effective Federal Funds Rate")
+tsdisplay(lu_ts,main="Unemployment Rate")
+ccf(lf_ts[,1],lu_ts[,1],ylab="Cross-Correlation Function", main = "Effective federal Funds Rate and Unemployment Rate CCF")
+
+y=cbind(lf_ts, lu_ts)
+y_tot=data.frame(y)
+y_model=VAR(y_tot,p=4)
+summary(y_model)
+
+quartz()
+plot(y_model)
+```
+
+11. Compute, plot, and interpret the respective impulse response functions.
+```{r}
+irf(y_model)
+
+quartz()
+plot(irf(y_model, n.ahead=12))
+```
+
+12. Perform a Granger-Causality test on your variables and discuss your results from the test.
+```{r}
+grangertest(lf_ts ~ lu_ts, order = 8) 
+# H0: unemployment does not effective federal funds rate
+# fail to reject H0
+
+grangertest(lu_ts ~ lf_ts, order = 8) 
+# H0: effective federal funds rate does not affect unemployment rate
+# reject H0 at the 5% level
+```
+
+13. Use your VAR model to forecast 12-steps ahead. Your forecast should include the respective error bands. Comment on the differences between the two forecasts (VAR vs. ARIMA).
+```{r}
+var.predict = predict(object=y_model, n.ahead=12)
+quartz()
+plot(var.predict)
+```
+
+14. Backtest your ARIMA model. Begin by partitioning your data set into an estimation set and a prediction set.
+(a) Use a recursive backtesting scheme, and forecast 12-steps ahead at each iteration. Compute the mean absolute percentage error at each step. Provide a plot showing the MAPE over each iteration.
+
+```{r warning=F}
+#split the data into train and test set
+#install.packages("CombMSC")
+library(CombMSC)
+#install.packages("MLmetrics")
+require(MLmetrics)
+
+fed=splitTrainTest(lf_ts, numTrain = round(length(f_ts)*0.7))
+uem=splitTrainTest(lu_ts, numTrain = round(length(f_ts)*0.7))
+
+#Fedral Funds Rate
+#ffit5=Arima(lf_ts,order=c(1,1,2),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,0))) 
+#ffit5=Arima(lf_ts,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+# Unemployment Rate
+#ufit4=Arima(lu_ts,order=c(1,2,1),xreg = cbind(t, I(t^2)),seasonal=list(order=c(1,0,1))) 
+#ufit4=Arima(lu_ts,order=c(1,2,1),include.drift=TRUE,seasonal=list(order=c(1,0,1)))
+
+#recursive backtesting for fed
+f_arima=Arima(fed$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+f1=forecast(f_arima,h=12)
+forecast_MAPE = MAPE(f1$fitted,fed$train[1:12])
+t1<-fed$train
+t2<-fed$test
+for (i in 1:(length(fed$test)-12)) {
+  t1<-ts(c(t1,fed$test[i]))
+  t2<-ts(t2[-1]) 
+  new_model=Arima(t1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=12)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,t2[1:12])))
+  forecast_MAPE = c(forecast_MAPE, MAPE(f$fitted,t2[1:12]))
+}
+plot(c(1:61),forecast_MAPE,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (FFR 12-steps)")
+abline(h=mean(forecast_MAPE),col="green",lwd = 2)
+
+#recursive backtesting for uemployment rate
+u_arima=Arima(uem$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+u1=forecast(u_arima,h=12)
+forecast_MAPE2 = MAPE(u1$fitted,uem$train[1:12])
+s1<-uem$train
+s2<-uem$test
+for (i in 1:(length(uem$test)-12)) {
+  s1<-ts(c(s1,uem$test[i]))
+  s2<-ts(s2[-1]) 
+  new_model=Arima(s1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=12)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,s2[1:12])))
+  forecast_MAPE2 = c(forecast_MAPE2, MAPE(f$fitted,s2[1:12]))
+}
+plot(c(1:61),forecast_MAPE2,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (UR 12-steps)")
+abline(h=mean(forecast_MAPE2),col="green",lwd = 2)
+
+```
+
+(b) Shorten your forecast horizon to only 1-step ahead. Compute the absolute percentage error at each iteration, and plot.
+
+```{r warning=F}
+#recursive backtesting for fed
+f_arima=Arima(fed$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+f1=forecast(f_arima,h=1)
+forecast_MAPE3 = MAPE(f1$fitted,fed$train[1])
+t1<-fed$train
+t2<-fed$test
+for (i in 1:(length(fed$test)-1)) {
+  t1<-ts(c(t1,fed$test[i]))
+  t2<-ts(t2[-1]) 
+  new_model=Arima(t1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=1)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,t2[1])))
+  forecast_MAPE3 = c(forecast_MAPE3, MAPE(f$fitted,t2[1]))
+}
+plot(c(1:72),forecast_MAPE3,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration(FFR 1-steps)")
+abline(h=mean(forecast_MAPE3),col="green",lwd = 2)
+
+#recursive backtesting for uemployment rate
+u_arima=Arima(uem$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+u1=forecast(u_arima,h=1)
+forecast_MAPE4 = MAPE(u1$fitted,uem$train[1])
+s1<-uem$train
+s2<-uem$test
+for (i in 1:(length(uem$test)-1)) {
+  s1<-ts(c(s1,uem$test[i]))
+  s2<-ts(s2[-1]) 
+  new_model=Arima(s1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=1)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,s2[1])))
+  forecast_MAPE4 = c(forecast_MAPE4, MAPE(f$fitted,s2[1]))
+}
+plot(c(1:72),forecast_MAPE4,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration(UR 1-steps)")
+abline(h=mean(forecast_MAPE4),col="green",lwd = 2)
+
+```
+
+(c) Based on your findings above, does your model perform better at longer or shorter horizon forecasts?
+
+```{r}
+t<-matrix(c(mean(forecast_MAPE),mean(forecast_MAPE2),mean(forecast_MAPE3),mean(forecast_MAPE4)),ncol=2,nrow=2)
+colnames(t) <- c("Federal Funds Rate","Unemployment Rate")
+rownames(t) <- c("Long Horizon Forecast MAPE average","Short Horizon Forecast MAPE average")
+t <- as.table(t)
+t
+```
+
+(d) Now test your model using a moving window backtesting scheme. Forecast out 12-steps ahead at each iteration, and plot the forecast errors observed at each iteration. Repeat for a 1-step ahead forecast horizon. Provide plots of both.
+
+```{r warning=F}
+#12 steps:
+#rolling backtesting for fed
+f_arima=Arima(fed$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+f1=forecast(f_arima,h=12)
+forecast_MAPE5 = MAPE(f1$fitted,fed$train[1:12])
+t1<-fed$train
+t2<-fed$test
+for (i in 1:(length(fed$test)-12)) {
+  t1<-ts(t1[-1])
+  t1<-ts(c(t1,fed$test[i]))
+  t2<-ts(t2[-1]) 
+  new_model=Arima(t1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=12)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,t2[1:12])))
+  forecast_MAPE5 = c(forecast_MAPE5, MAPE(f$fitted,t2[1:12]))
+  print(length(forecast_MAPE5))
+}
+plot(c(1:61),forecast_MAPE5,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (FFR 12-steps)")
+abline(h=mean(forecast_MAPE5),col="green",lwd = 2)
+
+
+#rolling  backtesting for uemployment rate
+u_arima=Arima(uem$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+u1=forecast(u_arima,h=12)
+forecast_MAPE6 = MAPE(u1$fitted,uem$train[1:12])
+s1<-uem$train
+s2<-uem$test
+for (i in 1:(length(uem$test)-12)) {
+  s1<-ts(s1[-1])
+  s1<-ts(c(s1,uem$test[i]))
+  s2<-ts(s2[-1]) 
+  new_model=Arima(s1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=12)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,s2[1:12])))
+  forecast_MAPE6 = c(forecast_MAPE6, MAPE(f$fitted,s2[1:12]))
+}
+plot(c(1:61),forecast_MAPE6,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (UR 12-steps)")
+abline(h=mean(forecast_MAPE6),col="green",lwd = 2)
+
+#1 steps:
+#rolling backtesting for fed
+f_arima=Arima(fed$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+f1=forecast(f_arima,h=1)
+forecast_MAPE7 = MAPE(f1$fitted,fed$train[1])
+t1<-fed$train
+t2<-fed$test
+for (i in 1:(length(fed$test)-1)) {
+  t1<-ts(t1[-1])
+  t1<-ts(c(t1,fed$test[i]))
+  t2<-ts(t2[-1]) 
+  new_model=Arima(t1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=1)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,t2[1])))
+  forecast_MAPE7 = c(forecast_MAPE7, MAPE(f$fitted,t2[1]))
+}
+plot(c(1:72),forecast_MAPE7,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (FFR 1-steps)")
+abline(h=mean(forecast_MAPE7),col="green",lwd = 2)
+
+#rolling backtesting for uemployment rate
+u_arima=Arima(uem$train,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0))) 
+u1=forecast(u_arima,h=1)
+forecast_MAPE8 = MAPE(u1$fitted,uem$train[1])
+s1<-uem$train
+s2<-uem$test
+for (i in 1:(length(uem$test)-1)) {
+  s1<-ts(s1[-1])
+  s1<-ts(c(s1,uem$test[i]))
+  s2<-ts(s2[-1]) 
+  new_model=Arima(s1,order=c(1,1,2),include.drift=TRUE,seasonal=list(order=c(1,0,0)))
+  f=forecast(new_model, h=1)
+  print(cat('for iteration',i,'the MAPE is',MAPE(f$fitted,s2[1])))
+  forecast_MAPE8 = c(forecast_MAPE8, MAPE(f$fitted,s2[1]))
+}
+plot(c(1:72),forecast_MAPE8,xlab ='iteration',ylab='MAPE',main = "MAPE for each iteration (UR 1-steps)")
+abline(h=mean(forecast_MAPE8),col="green",lwd = 2)
+
+t2<-matrix(c(mean(forecast_MAPE5),mean(forecast_MAPE6),mean(forecast_MAPE7),mean(forecast_MAPE8)),ncol=2,nrow=2)
+colnames(t2) <- c("Federal Funds Rate","Unemployment Rate")
+rownames(t2) <- c("Long Horizon Forecast MAPE average","Short Horizon Forecast MAPE average")
+t2 <- as.table(t2)
+t2
+```
+
+(e) How do the errors found using a recursive backtesting scheme compare with the errors observed using a moving average backtesting scheme? Which scheme showed higher errors overall, and what does that tell you about your model?
+
+
+```{r}
+#"Recursive"
+t<-matrix(c(mean(forecast_MAPE),mean(forecast_MAPE2),mean(forecast_MAPE3),mean(forecast_MAPE4)),ncol=2,nrow=2)
+colnames(t) <- c("Federal Funds Rate","Unemployment Rate")
+rownames(t) <- c("Long Horizon Forecast MAPE average","Short Horizon Forecast MAPE average")
+t <- as.table(t)
+t
+
+# "rolling"
+t2<-matrix(c(mean(forecast_MAPE5),mean(forecast_MAPE6),mean(forecast_MAPE7),mean(forecast_MAPE8)),ncol=2,nrow=2)
+colnames(t2) <- c("Federal Funds Rate","Unemployment Rate")
+rownames(t2) <- c("Long Horizon Forecast MAPE average","Short Horizon Forecast MAPE average")
+t2 <- as.table(t2)
+t2
+```
